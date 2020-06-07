@@ -1,0 +1,3 @@
+#!/bin/sh
+
+curl $1 -H 'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:74.0) Gecko/20100101 Firefox/74.0' -H 'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8' -H 'Accept-Language: pt-PT,pt;q=0.8,en;q=0.5,en-US;q=0.3' --compressed -H 'DNT: 1' -H 'Connection: keep-alive' -H 'Cookie: skc=956ec336-43ab-40c4-9ef4-dd36a904efe7-1585087245; cart-v2=true; gtm_client_id=4092075051.1585087246070; store=german; G2ACOM=du88p4obk8qhuj1tu65ds1qvg3; currency=EUR; gdpr_cookie=%5B%5D' -H 'Upgrade-Insecure-Requests: 1' -H 'Pragma: no-cache' -H 'Cache-Control: no-cache'
