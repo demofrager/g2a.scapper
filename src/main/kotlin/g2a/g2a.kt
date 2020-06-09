@@ -55,7 +55,7 @@ fun checkNotifications(products: HashSet<Product>, username: String, password: S
     if (prodsToSend.isNotEmpty()) {
 
         val body = prepareBody(prodsToSend)
-//        sendEmail(username, password, hostname, receiver, body)
+        sendEmail(username, password, hostname, receiver, body)
         println("Sending email with body:\n$body")
     }
 }
