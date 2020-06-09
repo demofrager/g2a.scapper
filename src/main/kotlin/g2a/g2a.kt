@@ -5,61 +5,94 @@ import it.skrape.selects.DocElement
 import it.skrape.selects.and
 import it.skrape.selects.html5.span
 import org.apache.commons.mail.DefaultAuthenticator
-import org.apache.commons.mail.Email
+
 import org.apache.commons.mail.SimpleEmail
-import java.math.BigDecimal
+import com.natpryce.konfig.*
+import java.io.File
+import java.lang.StringBuilder
+import kotlin.collections.HashSet
 
 
-var map = mapOf(
-    "Steam Gift Card 100EUR Global" to
-            "https://www.g2a.com/steam-gift-card-100-eur-steam-key-global-i10000000258129",
-    "Red Dead Redemption 2" to
-            "https://www.g2a.com/red-dead-redemption-2-rockstar-key-global-i10000174280024"
-)
+val email_enable = Key("email.enable", booleanType)
+val email_hostname = Key("email.hostname", stringType)
+val email_username = Key("email.username", stringType)
+val email_password = Key("email.password", stringType)
+val email_receiver = Key("email.receiver", stringType)
+const val propertiesFile: String = "config/config.properties"
+
+const val productsFile: String = "products.db"
 
 fun main() {
 
+    val config = ConfigurationProperties.fromFile(File(propertiesFile))
     var products: HashSet<Product> = hashSetOf()
-    for (e in map){
-        val p = scrapeProduct(e.key, e.value)
-        Thread.sleep(((Math.random() * 5000).toLong()))
-        products.add(p)
-    }
 
-    // TODO: Apply notification process
-    for (p in products){
-        if (p.toNotify) {
-            triggerNotification(p)
-        } else
-        {
-            println("No notification for $p")
+    File(productsFile).forEachLine {
+        it.split(",").apply {
+            val p = scrapeProduct(this[1], this[0])
+            Thread.sleep(((Math.random() * 5000).toLong()))
+            products.add(p)
         }
     }
 
+    var send = config[email_enable]
+
+    if (send) {
+        checkNotifications(products, config[email_username], config[email_password], config[email_hostname], config[email_receiver])
+    } else{
+        println("No products to send notification")
+    }
 }
 
-fun triggerNotification(p: Product): String =
+fun checkNotifications(products: HashSet<Product>, username: String, password: String, hostname: String, receiver: String) {
+
+    var prodsToSend: HashSet<Product> = hashSetOf()
+    for (p in products){
+        if(p.toNotify) prodsToSend.add(p)
+    }
+
+    // Only prepare if we have products to notify
+    if (prodsToSend.isNotEmpty()) {
+
+        val body = prepareBody(prodsToSend)
+//        sendEmail(username, password, hostname, receiver, body)
+        println("Sending email with body:\n$body")
+    }
+}
+
+fun prepareBody(prodsToSend: HashSet<Product>): String =
+    StringBuilder().apply {
+        appendln("Hi there,")
+        appendln()
+        appendln("Just to let you know that products you mentioned are available for purchase: ")
+        prodsToSend.forEach {
+            appendln("-> ${it.name} at price: ${it.bestPrice.price}EUR from seller: ${it.bestPrice.seller} on URL: ${it.url}")
+        }
+        appendln()
+        appendln("Best regards, and happy hunting")
+    }.toString()
+
+
+fun sendEmail(username: String, password: String, hostname: String, receiver: String, body: String) {
     SimpleEmail().apply {
-        hostName = "smtp.googlemail.com"
+        hostName = hostname
         setSmtpPort(465)
         setAuthenticator(
-            DefaultAuthenticator("username", "password")
+            DefaultAuthenticator(username, password)
         )
         isSSLOnConnect = true
-        setFrom("user@gmail.com")
-        subject = "TestMail"
-        setMsg("This is a test mail ... :-)")
-        addTo("foo@bar.com")
+        setFrom(username)
+        subject = "G2A Products available for purchase!"
+        setMsg(body)
+        addTo(receiver)
     }.send()
+}
 
 
+fun scrapeProduct(url: String, price: String): Product {
 
-
-fun scrapeProduct(name: String, url: String): Product {
-
-    var prod = Product(name)
-    prod.notificationThreshold = BigDecimal(10)
-    // TODO: Maybe a db of entries?
+    var prod = Product(url)
+    prod.priceToBuy = price.toBigDecimal()
     val process = ProcessBuilder("sh", "libs/g2a.sh", url).start()
     var sellers: List<DocElement> = mutableListOf()
     var prices: List<DocElement> = mutableListOf()
@@ -68,6 +101,13 @@ fun scrapeProduct(name: String, url: String): Product {
         val html = it.readText()
 
         htmlDocument(html) {
+
+            span {
+                withClass = "Card__clamp-container"
+                findFirst {
+                    prod.name = this.text
+                }
+            }
 
             span {
                 withClass = "seller-info__user"
@@ -95,8 +135,9 @@ fun scrapeProduct(name: String, url: String): Product {
             var p = Price(price.toBigDecimal(), seller)
             prod.addPrice(p)
         }
-        println("Porduct: $prod has Best Price: ${prod.bestPrice}")
+        println("Created product: ${prod.name} with BestPrice: ${prod.bestPrice} and your maximum price to purchase: ${prod.priceToBuy}")
     }
+
     return prod
 }
 
