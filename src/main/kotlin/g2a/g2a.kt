@@ -8,23 +8,30 @@ import org.apache.commons.mail.DefaultAuthenticator
 
 import org.apache.commons.mail.SimpleEmail
 import com.natpryce.konfig.*
+import javafx.beans.property.Property
 import java.io.File
+import java.io.IOException
 import java.lang.StringBuilder
 import kotlin.collections.HashSet
-
+import kotlin.system.exitProcess
 
 val email_enable = Key("email.enable", booleanType)
 val email_hostname = Key("email.hostname", stringType)
 val email_username = Key("email.username", stringType)
 val email_password = Key("email.password", stringType)
 val email_receiver = Key("email.receiver", stringType)
-const val propertiesFile: String = "config/config.properties"
-
-const val productsFile: String = "products.db"
+val programEnv = System.getenv("G2A")
 
 fun main() {
 
+
+    println("Environment var G2A: $programEnv")
+
+    val propertiesFile: String = "$programEnv/config/config.properties"
+    val productsFile: String = "$programEnv/products.db"
+
     val config = ConfigurationProperties.fromFile(File(propertiesFile))
+
     var products: HashSet<Product> = hashSetOf()
 
     File(productsFile).forEachLine {
@@ -35,9 +42,7 @@ fun main() {
         }
     }
 
-    var send = config[email_enable]
-
-    if (send) {
+    if (config[email_enable]) {
         checkNotifications(products, config[email_username], config[email_password], config[email_hostname], config[email_receiver])
     } else{
         println("No products to send notification")
@@ -57,6 +62,9 @@ fun checkNotifications(products: HashSet<Product>, username: String, password: S
         val body = prepareBody(prodsToSend)
         sendEmail(username, password, hostname, receiver, body)
         println("Sending email with body:\n$body")
+    }
+    else {
+        println("No products triggered notifications")
     }
 }
 
@@ -89,18 +97,27 @@ fun sendEmail(username: String, password: String, hostname: String, receiver: St
 }
 
 
-fun scrapeProduct(url: String, price: String): Product {
+fun scrapeProduct(url: String, priceToBuy: String): Product {
 
     var prod = Product(url)
-    prod.priceToBuy = price.toBigDecimal()
-    val process = ProcessBuilder("sh", "libs/g2a.sh", url).start()
+    prod.priceToBuy = priceToBuy.toBigDecimal()
     var sellers: List<DocElement> = mutableListOf()
     var prices: List<DocElement> = mutableListOf()
 
-    process.inputStream.reader(Charsets.UTF_8).use {
-        val html = it.readText()
 
-        htmlDocument(html) {
+    val text = try{
+        ProcessBuilder("sh", "$programEnv/libs/g2a.sh", url)
+            .start()
+            .inputStream
+            .reader(Charsets.UTF_8).use {
+                it.readText()
+        }
+    } catch (e: IOException) {
+        null
+    }
+
+    if (text != null) {
+        htmlDocument(text) {
 
             span {
                 withClass = "Card__clamp-container"
@@ -136,6 +153,11 @@ fun scrapeProduct(url: String, price: String): Product {
             prod.addPrice(p)
         }
         println("Created product: ${prod.name} with BestPrice: ${prod.bestPrice} and your maximum price to purchase: ${prod.priceToBuy}")
+
+    }
+    else {
+        println("Eoooooo :(")
+        exitProcess(1)
     }
 
     return prod

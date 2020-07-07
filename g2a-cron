@@ -1,0 +1,9 @@
+#!/bin/bash
+
+# Env variables to run the app via cron
+G2A=/opt/G2A/
+JAVA_HOME=/usr/java/openjdk-14/
+
+# Execute every 6 hours
+* * * * * /opt/G2A/bin/G2A >> /var/log/g2a.log 2>&1
+# An empty line is required at the end of this file for a valid cron file.
